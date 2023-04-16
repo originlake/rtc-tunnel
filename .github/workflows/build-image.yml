@@ -33,6 +33,6 @@ jobs:
     - 
       name: build and push
       run: |
-        docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/rtc-tunnel:server -f Dockerfile.server . --platform=linux/amd64,linux/arm64 --push
-        docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/rtc-tunnel:client -f Dockerfile.client . --platform=linux/amd64,linux/arm64 --push
+        docker buildx build -t ${{ secrets.DOCKER_HUB_USERNAME }}/rtc-tunnel:server -f Dockerfile.server . --platform=linux/amd64,linux/arm64 --push
+        docker buildx build -t ${{ secrets.DOCKER_HUB_USERNAME }}/rtc-tunnel:client -f Dockerfile.client . --platform=linux/amd64,linux/arm64 --push
       
