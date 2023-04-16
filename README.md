@@ -61,12 +61,12 @@ docker run -p 9000:9000 peerjs/peerjs-server -k <connection-key>
 
 On server (ex. RaspberryPI):
 ```
-rtc_server -u ws://<peerjs-server-host>:9000 -k <connection-key>
+docker run --net=host originlake/rtc_tunnel:server -u ws://<peerjs-server-host>:9000 -k <connection-key>
 ```
 
 On client (ex. PC):
 ```
-rtc_client.py -s 3334 -d 22 -u ws://<peerjs-server-host>:9000 -k <connection-key>
+docker run -p 3334:3334 originlake/rtc_tunnel:client -s 3334 -d 22 -u ws://<peerjs-server-host>:9000 -k <connection-key>
 ```
 
 On client (PC), port `3334` will be opened and will listen for new connections. Each connection will be redirected to port `22` on server (RaspberryPI).

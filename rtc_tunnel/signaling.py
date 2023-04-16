@@ -2,6 +2,7 @@ import asyncio
 import json
 import sys
 import websockets
+import requests
 from json import JSONDecodeError
 
 from aiortc import RTCSessionDescription, RTCIceCandidate
@@ -49,7 +50,7 @@ class ConsoleSignaling:
 class WebSignaling:
     def __init__(self, source: str, host_url: str, key: str, token: str, ping_interval: int = 20):
         self._source = source
-        self._host_url = f"{host_url}?key={key}&id={source}&token={token}"
+        self._host_url = f"{host_url}/peerjs?key={key}&id={source}&token={token}"
         self._client = None
         self._ping_timer = None
         self._ping_interval = ping_interval
@@ -80,7 +81,16 @@ class WebSignaling:
             await asyncio.sleep(self._ping_interval)
 
 
-
+def get_peer_id(url: str):
+    if url.startswith('ws://'):
+        url = url.replace('ws://', 'http://')
+    elif url.startswith('wss://'):
+        url = url.replace('wss://', 'https://')
+    res = requests.get(f'{url}/peerjs/id')
+    if res.ok:
+        return res.content.decode()
+    else:
+        return None
 
 def object_to_string(obj, dest: str):
     if isinstance(obj, RTCSessionDescription):
