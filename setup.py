@@ -9,7 +9,8 @@ setup(
     url="https://github.com/originlake/rtc-tunnel",
     install_requires=[
         "aiortc>=1.5.0",
-        "websockets"
+        "websockets",
+        "requests"
     ],
     entry_points={
         'console_scripts': [
