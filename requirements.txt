@@ -1,4 +1,3 @@
 aiortc
 asyncio
-requests
 websockets

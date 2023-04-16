@@ -1,0 +1,9 @@
+FROM python:3.8.16-slim AS BUILDER
+
+WORKDIR /app
+
+COPY . ./
+
+RUN pip3 install .
+
+ENTRYPOINT [ "rtc_client" ]

@@ -1,7 +1,6 @@
 import asyncio
 import json
 import sys
-import requests
 import websockets
 from json import JSONDecodeError
 
@@ -40,7 +39,7 @@ class ConsoleSignaling:
             except JSONDecodeError:
                 pass
 
-    def send(self, descr, dest: str):
+    async def send_async(self, descr, dest: str):
         print('-- Please send this message to the remote party named [%s] --' % dest)
         message = object_to_string(descr, self._source)
         self._write_pipe.write(message + '\n')
@@ -48,61 +47,79 @@ class ConsoleSignaling:
 
 
 class WebSignaling:
-    def __init__(self, source: str, send_url: str, receive_url: str):
+    def __init__(self, source: str, host_url: str, key: str, token: str, ping_interval: int = 20):
         self._source = source
-        self._send_url = send_url
-        self._receive_url = receive_url
+        self._host_url = f"{host_url}?key={key}&id={source}&token={token}"
         self._client = None
+        self._ping_timer = None
+        self._ping_interval = ping_interval
 
     async def connect_async(self):
-        self._client = await websockets.connect(self._receive_url + '/topic/message/' + self._source)
+        self._client = await websockets.connect(self._host_url, ping_interval=None)
+        self._ping_timer = asyncio.ensure_future(self.send_heartbeat())
+        # skip one for server confirmation
+        await self._client.recv()
 
     async def close_async(self):
         if self._client is not None:
             await self._client.close()
+        if self._ping_timer is not None:
+            self._ping_timer.cancel()
 
     async def receive_async(self):
         message = await self._client.recv()
         return object_from_string(message)
 
-    def send(self, descr, dest: str):
-        message = object_to_string(descr, self._source)
-        response = requests.post(self._send_url + '/message/' + dest, data=message)
-        if response.status_code != 200:
-            raise IOError('Unable to send signaling message: ' + str(response.status_code))
+    async def send_async(self, descr, dest: str):
+        message = object_to_string(descr, dest)
+        await self._client.send(message)
+
+    async def send_heartbeat(self,):
+        while self._client.open:
+            await self._client.send(json.dumps({"type":"HEARTBEAT"}))
+            await asyncio.sleep(self._ping_interval)
 
 
-def object_to_string(obj, source: str):
+
+
+def object_to_string(obj, dest: str):
     if isinstance(obj, RTCSessionDescription):
-        data = {
+        payload = {
             'sdp': obj.sdp,
             'type': obj.type
         }
+        type = 'OFFER'
     elif isinstance(obj, RTCIceCandidate):
-        data = {
+        payload = {
             'candidate': 'candidate:' + candidate_to_sdp(obj),
             'id': obj.sdpMid,
             'label': obj.sdpMLineIndex,
             'type': 'candidate',
         }
+        type = 'CANDIDATE'
     else:
         raise ValueError('Can only send RTCSessionDescription or RTCIceCandidate')
     message = {
-        'source': source,
-        'data': data
+        'dst': dest,
+        'payload': payload,
+        'type': type
     }
     return json.dumps(message, sort_keys=True)
 
 
 def object_from_string(message_str):
     obj = json.loads(message_str)
-    data = obj['data']
-    source = obj['source']
+    if obj["type"] in ["OFFER", "CANDIDATE"]:
+        payload = obj['payload']
+        source = obj['src']
+        dst = obj['dst']
 
-    if data['type'] in ['answer', 'offer']:
-        return RTCSessionDescription(**data), source
-    elif data['type'] == 'candidate':
-        candidate = candidate_from_sdp(data['candidate'].split(':', 1)[1])
-        candidate.sdpMid = data['id']
-        candidate.sdpMLineIndex = data['label']
-        return candidate, source
+        if payload['type'] in ['answer', 'offer']:
+            return RTCSessionDescription(**payload), source
+        elif payload['type'] == 'candidate':
+            candidate = candidate_from_sdp(payload['candidate'].split(':', 1)[1])
+            candidate.sdpMid = payload['id']
+            candidate.sdpMLineIndex = payload['label']
+            return candidate, source
+    return obj["type"], None
+

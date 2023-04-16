@@ -34,12 +34,15 @@ class TunnelClient:
         await self._signal_server.connect_async()
 
         logging.info('[INIT] Sending local descriptor to signaling server')
-        self._signal_server.send(self._peer_connection.localDescription, self._destination)
+        await self._signal_server.send_async(self._peer_connection.localDescription, self._destination)
 
         logging.info('[INIT] Awaiting answer from signaling server')
         obj, src = await self._signal_server.receive_async()
         if not isinstance(obj, RTCSessionDescription) or obj.type != 'answer':
-            logging.info('[ERROR] Unexpected answer from signaling server')
+            if obj == 'EXPIRE':
+                logging.info('[ERROR] Peer server is not available')
+            else:
+                logging.info('[ERROR] Unexpected answer from signaling server')
             return
         await self._peer_connection.setRemoteDescription(obj)
         logging.info('[INIT] Established RTC connection')

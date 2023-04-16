@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import traceback
+import websockets
 
 from aiortc import RTCSessionDescription, RTCPeerConnection, RTCDataChannel
 
@@ -27,12 +28,15 @@ class TunnelServer:
             while True:
                 try:
                     obj, src = await self._signal_server.receive_async()
+                except websockets.exceptions.ConnectionClosedError:
+                    logging.error('[ERROR] Connection closed by signal server, please verify the key')
+                    return
                 except Exception:
                     break
                 if isinstance(obj, RTCSessionDescription) and obj.type == 'offer':
                     await self._handle_new_client_async(obj, src)
                 else:
-                    logging.info('[WARNING] Unknown request from signaling server, ignoring')
+                    logging.warning('[WARNING] Unknown request from signaling server, ignoring')
             logging.info('[EXIT] Connection with signaling server broken')
 
     async def _handle_new_client_async(self, obj: RTCSessionDescription, src: str):
@@ -42,7 +46,7 @@ class TunnelServer:
         await peer_connection.setLocalDescription(await peer_connection.createAnswer())
 
         logging.info('[CLIENT] Sending local descriptor to signaling server')
-        self._signal_server.send(peer_connection.localDescription, src)
+        await self._signal_server.send_async(peer_connection.localDescription, src)
 
         @peer_connection.on('datachannel')
         def on_datachannel(channel: RTCDataChannel):
